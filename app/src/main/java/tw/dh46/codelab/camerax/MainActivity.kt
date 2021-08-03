@@ -5,6 +5,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.OrientationEventListener
+import android.view.Surface
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
@@ -75,9 +77,11 @@ class MainActivity : AppCompatActivity() {
             if (allPermissionsGranted()) {
                 startCamera()
             } else {
-                Toast.makeText(this,
+                Toast.makeText(
+                    this,
                     "Permissions not granted by the user.",
-                Toast.LENGTH_SHORT).show()
+                    Toast.LENGTH_SHORT
+                ).show()
                 finish()
             }
         }
@@ -111,7 +115,10 @@ class MainActivity : AppCompatActivity() {
         // Create time-stamped output file to hold the image
         val photoFile = File(
             outputDirectory,
-            SimpleDateFormat(FILENAME_FORMAT, Locale.TAIWAN).format(System.currentTimeMillis()) + ".jpg"
+            SimpleDateFormat(
+                FILENAME_FORMAT,
+                Locale.TAIWAN
+            ).format(System.currentTimeMillis()) + ".jpg"
         )
 
         // Create output options object which contains file + metadata
@@ -144,6 +151,7 @@ class MainActivity : AppCompatActivity() {
         // 用來綁訂相機的生命週期到  lifecycle owner
         // 讓相機生命週期的開啟與關閉由  lifecycle owner 來控
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+
         cameraProviderFuture.addListener(Runnable {
             // Used to bind the lifecycle of cameras to the lifecycle owner
             val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
@@ -156,14 +164,31 @@ class MainActivity : AppCompatActivity() {
                 }
 
             imageCapture = ImageCapture.Builder()
+                .setFlashMode(ImageCapture.FLASH_MODE_OFF)
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                .setTargetAspectRatio(AspectRatio.RATIO_4_3) // 指定比例 4:3 (比例與畫素設定不可同時存在)
                 .build()
+
+            // 控制照片轉正
+            val orientationEventListener = object : OrientationEventListener(this) {
+                override fun onOrientationChanged(orientation: Int) {
+                    val rotation: Int = when (orientation) {
+                        in 45..134 -> Surface.ROTATION_270
+                        in 135..224 -> Surface.ROTATION_180
+                        in 225..314 -> Surface.ROTATION_90
+                        else -> Surface.ROTATION_0
+                    }
+
+                    imageCapture!!.targetRotation = rotation
+                }
+            }
+            orientationEventListener.enable()
 
             // 新增相片分析
             val imageAnalyzer = ImageAnalysis.Builder()
                 .build()
                 .also {
-                    it.setAnalyzer(cameraExecutor, LuminosityAnalyzer {
-                        luma ->
+                    it.setAnalyzer(cameraExecutor, LuminosityAnalyzer { luma ->
                         Log.d(TAG, "Average luminosity: $luma")
                     })
                 }
@@ -176,8 +201,12 @@ class MainActivity : AppCompatActivity() {
                 cameraProvider.unbindAll()
 
                 // Bind use cases to camera
-                cameraProvider.bindToLifecycle(
-                    this, cameraSelector, preview, imageCapture, imageAnalyzer)
+                val camera = cameraProvider.bindToLifecycle(
+                    this, cameraSelector, preview, imageCapture, imageAnalyzer
+                )
+
+                // 相機設定控制
+                val cameraControl = camera.cameraControl
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
