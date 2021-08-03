@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="tw.dh46.codelab.camerax">
 
+    <!--  any => 代表只有前鏡頭的裝置也可以，如果沒有加這個，則代表只有後鏡頭的裝置可以使用-->
+    <uses-feature android:name="android.hardware.camera.any" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
